@@ -1,0 +1,2419 @@
+<!doctype html>
+<html lang="ja">
+    <head>
+        <meta charset="UTF-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+        <title>キックベース分析</title>
+        <style>
+            *,
+            *::before,
+            *::after {
+                box-sizing: border-box;
+                margin: 0;
+                padding: 0;
+            }
+            :root {
+                color-scheme: light;
+                --bg: #eaeaea;
+                --bg-card: #d9d9d9;
+                --fg: #1a1a1a;
+                --primary: #3c5496;
+                --primary-fg: #f4f4f4;
+                --muted-fg: #5a5a5a;
+                --border: #c4c4c4;
+                --accent-red: #ba3434;
+                --radius: 0.625rem;
+                --chart-1: #3c5496;
+                --chart-2: #ba3434;
+                --chart-3: #6b7db0;
+                --chart-4: #8a8a8a;
+                --font-sans:
+                    "Hiragino Sans", "Noto Sans JP", system-ui, sans-serif;
+                --font-mono: "SF Mono", "Noto Sans JP Mono", monospace;
+            }
+            @media (prefers-color-scheme: dark) {
+                :root {
+                    color-scheme: dark;
+                    --bg: oklch(0.145 0 0);
+                    --bg-card: oklch(0.205 0 0);
+                    --fg: oklch(0.985 0 0);
+                    --primary: oklch(0.922 0 0);
+                    --primary-fg: oklch(0.205 0 0);
+                    --muted-fg: oklch(0.708 0 0);
+                    --border: oklch(1 0 0 / 10%);
+                    --accent-red: oklch(0.704 0.191 22.216);
+                    --chart-1: oklch(0.87 0 0);
+                    --chart-2: oklch(0.556 0 0);
+                    --chart-3: oklch(0.439 0 0);
+                    --chart-4: oklch(0.371 0 0);
+                }
+            }
+            html {
+                font-family: var(--font-sans);
+                background: var(--bg);
+                color: var(--fg);
+                -webkit-font-smoothing: antialiased;
+            }
+            body {
+                min-height: 100dvh;
+            }
+            a {
+                color: inherit;
+                text-decoration: none;
+            }
+            button {
+                font: inherit;
+                cursor: pointer;
+                border: none;
+                background: none;
+                color: inherit;
+            }
+            select {
+                font: inherit;
+            }
+
+            /* Header */
+            .site-header {
+                position: sticky;
+                top: 0;
+                z-index: 30;
+                display: flex;
+                align-items: center;
+                justify-content: space-between;
+                height: 3.5rem;
+                padding: 0 1rem;
+                border-bottom: 1px solid var(--border);
+                background: color-mix(in srgb, var(--bg-card) 80%, transparent);
+                backdrop-filter: blur(8px);
+            }
+            .site-header .brand {
+                display: flex;
+                align-items: center;
+                gap: 0.5rem;
+                font-size: 0.875rem;
+                font-weight: 600;
+                letter-spacing: -0.02em;
+            }
+            .logo-icon {
+                display: flex;
+                width: 1.75rem;
+                height: 1.75rem;
+                align-items: center;
+                justify-content: center;
+                border-radius: 0.375rem;
+                background: var(--primary);
+                color: var(--primary-fg);
+            }
+            .logo-dot {
+                width: 0.875rem;
+                height: 0.875rem;
+                border-radius: 50%;
+                border: 2px solid var(--primary-fg);
+            }
+            .site-nav {
+                display: flex;
+                align-items: center;
+                gap: 0.25rem;
+            }
+            .nav-link {
+                display: flex;
+                align-items: center;
+                gap: 0.375rem;
+                padding: 0.375rem 0.75rem;
+                border-radius: 0.375rem;
+                font-size: 0.875rem;
+                font-weight: 500;
+                color: var(--muted-fg);
+                transition:
+                    background 0.15s,
+                    color 0.15s;
+            }
+            .nav-link:hover,
+            .nav-link:focus-visible {
+                background: color-mix(in srgb, var(--fg) 8%, transparent);
+                color: var(--fg);
+            }
+            .nav-link.active {
+                background: var(--primary);
+                color: var(--primary-fg);
+            }
+            .nav-link svg {
+                width: 1rem;
+                height: 1rem;
+                flex-shrink: 0;
+            }
+            @media (max-width: 640px) {
+                .nav-link span {
+                    display: none;
+                }
+            }
+
+            /* Pages */
+            .page {
+                display: none;
+                min-height: calc(100dvh - 3.5rem);
+                overflow-y: auto;
+            }
+            .page.active {
+                display: block;
+            }
+            .page-inner {
+                padding: 2rem 1rem;
+            }
+
+            /* Utility */
+            .text-2xl {
+                font-size: 1.5rem;
+                line-height: 1.3;
+                font-weight: 700;
+                letter-spacing: -0.02em;
+                text-wrap: balance;
+            }
+            .text-sm {
+                font-size: 0.875rem;
+            }
+            .text-xs {
+                font-size: 0.75rem;
+            }
+            .text-muted {
+                color: var(--muted-fg);
+            }
+            .mb-1 {
+                margin-bottom: 0.25rem;
+            }
+            .mb-4 {
+                margin-bottom: 1rem;
+            }
+            .mb-6 {
+                margin-bottom: 1.5rem;
+            }
+            .mt-1 {
+                margin-top: 0.25rem;
+            }
+            .mt-2 {
+                margin-top: 0.5rem;
+            }
+            .mt-4 {
+                margin-top: 1rem;
+            }
+            .mt-6 {
+                margin-top: 1.5rem;
+            }
+            .mt-auto {
+                margin-top: auto;
+            }
+            .gap-1 {
+                gap: 0.25rem;
+            }
+            .gap-2 {
+                gap: 0.5rem;
+            }
+            .gap-3 {
+                gap: 0.75rem;
+            }
+            .gap-4 {
+                gap: 1rem;
+            }
+            .gap-5 {
+                gap: 1.25rem;
+            }
+            .gap-6 {
+                gap: 1.5rem;
+            }
+            .flex {
+                display: flex;
+            }
+            .flex-col {
+                flex-direction: column;
+            }
+            .flex-wrap {
+                flex-wrap: wrap;
+            }
+            .flex-1 {
+                flex: 1;
+            }
+            .items-center {
+                align-items: center;
+            }
+            .justify-center {
+                justify-content: center;
+            }
+            .justify-between {
+                justify-content: space-between;
+            }
+            .grid {
+                display: grid;
+            }
+            .hidden {
+                display: none;
+            }
+            .w-full {
+                width: 100%;
+            }
+            .text-center {
+                text-align: center;
+            }
+            .font-medium {
+                font-weight: 500;
+            }
+            .font-bold {
+                font-weight: 700;
+            }
+            .font-semibold {
+                font-weight: 600;
+            }
+            .font-mono {
+                font-family: var(--font-mono);
+            }
+            .tracking-tight {
+                letter-spacing: -0.02em;
+            }
+            .tabular-nums {
+                font-variant-numeric: tabular-nums;
+            }
+            .whitespace-nowrap {
+                white-space: nowrap;
+            }
+            .overflow-hidden {
+                overflow: hidden;
+            }
+
+            /* Card */
+            .card {
+                display: flex;
+                flex-direction: column;
+                gap: 1rem;
+                overflow: hidden;
+                border-radius: var(--radius);
+                background: var(--bg-card);
+                padding: 1rem;
+                box-shadow: 0 0 0 1px
+                    color-mix(in srgb, var(--fg) 10%, transparent);
+            }
+            .card-header {
+                display: flex;
+                flex-direction: column;
+                gap: 0.25rem;
+            }
+            .card-title {
+                font-size: 0.875rem;
+                line-height: 1.4;
+                font-weight: 600;
+            }
+            .card-content {
+                display: flex;
+                flex-direction: column;
+                gap: 0.75rem;
+            }
+            .grid-cols-2 {
+                grid-template-columns: repeat(2, 1fr);
+            }
+            @media (min-width: 1024px) {
+                .grid-cols-4 {
+                    grid-template-columns: repeat(4, 1fr);
+                }
+                .lg\\:grid-cols-2 {
+                    grid-template-columns: repeat(2, 1fr);
+                }
+                .md\\:grid-cols-2 {
+                    grid-template-columns: repeat(2, 1fr);
+                }
+            }
+
+            /* Button */
+            .btn {
+                display: inline-flex;
+                align-items: center;
+                justify-content: center;
+                gap: 0.375rem;
+                height: 2rem;
+                padding: 0 0.625rem;
+                border-radius: 0.5rem;
+                font-size: 0.875rem;
+                font-weight: 500;
+                white-space: nowrap;
+                transition: all 0.15s;
+                border: 1px solid transparent;
+            }
+            .btn:focus-visible {
+                outline: 2px solid var(--primary);
+                outline-offset: 2px;
+            }
+            .btn:disabled {
+                pointer-events: none;
+                opacity: 0.5;
+            }
+            .btn-primary {
+                background: var(--primary);
+                color: var(--primary-fg);
+            }
+            .btn-primary:hover {
+                filter: brightness(1.1);
+            }
+            .btn-secondary {
+                background: color-mix(in srgb, var(--fg) 8%, transparent);
+                color: var(--fg);
+            }
+            .btn-secondary:hover {
+                filter: brightness(1.1);
+            }
+            .btn-ghost {
+                background: transparent;
+                color: var(--muted-fg);
+            }
+            .btn-ghost:hover {
+                background: color-mix(in srgb, var(--fg) 8%, transparent);
+                color: var(--fg);
+            }
+            .btn-icon {
+                width: 2rem;
+                padding: 0;
+                justify-content: center;
+            }
+            .btn-destructive-ghost {
+                background: transparent;
+                color: var(--muted-fg);
+            }
+            .btn-destructive-ghost:hover {
+                color: var(--accent-red);
+            }
+            .btn-sm {
+                height: 1.75rem;
+                padding: 0 0.5rem;
+                font-size: 0.8rem;
+            }
+
+            /* Input */
+            .input {
+                height: 2rem;
+                width: 100%;
+                min-width: 0;
+                border-radius: 0.5rem;
+                border: 1px solid var(--border);
+                background: transparent;
+                padding: 0 0.625rem;
+                font-size: 0.875rem;
+                transition: border-color 0.15s;
+                color: var(--fg);
+            }
+            .input:focus {
+                outline: none;
+                border-color: var(--primary);
+                box-shadow: 0 0 0 3px
+                    color-mix(in srgb, var(--primary) 20%, transparent);
+            }
+            .input::placeholder {
+                color: var(--muted-fg);
+            }
+
+            /* Badge */
+            .badge {
+                display: inline-flex;
+                align-items: center;
+                height: 1.25rem;
+                gap: 0.25rem;
+                border-radius: 999px;
+                padding: 0 0.5rem;
+                font-size: 0.75rem;
+                font-weight: 500;
+                white-space: nowrap;
+                border: 1px solid transparent;
+            }
+            .badge-secondary {
+                background: color-mix(in srgb, var(--fg) 8%, transparent);
+                color: var(--muted-fg);
+            }
+            .badge-outline {
+                border-color: var(--border);
+                color: var(--fg);
+            }
+
+            /* Tabs/TabList */
+            .tab-list {
+                display: flex;
+                align-items: center;
+                border-radius: 0.5rem;
+                padding: 3px;
+                gap: 0;
+                background: color-mix(in srgb, var(--fg) 8%, transparent);
+                flex-wrap: wrap;
+            }
+            .tab-trigger {
+                display: inline-flex;
+                align-items: center;
+                justify-content: center;
+                gap: 0.375rem;
+                flex: 1;
+                height: calc(100% - 2px);
+                padding: 0.25rem 0.5rem;
+                border-radius: 0.375rem;
+                font-size: 0.875rem;
+                font-weight: 500;
+                white-space: nowrap;
+                border: 1px solid transparent;
+                color: var(--muted-fg);
+                transition: all 0.15s;
+                background: transparent;
+                cursor: pointer;
+            }
+            .tab-trigger:hover {
+                color: var(--fg);
+            }
+            .tab-trigger.active {
+                background: var(--bg);
+                color: var(--fg);
+                box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+            }
+
+            /* Select */
+            .select-wrap {
+                position: relative;
+                display: flex;
+                height: 2rem;
+                width: 100%;
+                border-radius: 0.5rem;
+                border: 1px solid var(--border);
+                background: transparent;
+                cursor: pointer;
+                align-items: center;
+                padding: 0 2rem 0 0.625rem;
+                font-size: 0.875rem;
+                transition: border-color 0.15s;
+            }
+            .select-wrap:focus-within {
+                border-color: var(--primary);
+                box-shadow: 0 0 0 3px
+                    color-mix(in srgb, var(--primary) 20%, transparent);
+            }
+            .select-wrap select {
+                position: absolute;
+                inset: 0;
+                width: 100%;
+                height: 100%;
+                opacity: 0;
+                cursor: pointer;
+                font-size: 0.875rem;
+            }
+            .select-label {
+                flex: 1;
+                color: var(--fg);
+            }
+            .select-arrow {
+                position: absolute;
+                right: 0.5rem;
+                width: 1rem;
+                height: 1rem;
+                color: var(--muted-fg);
+                pointer-events: none;
+            }
+
+            /* Label */
+            .label {
+                display: flex;
+                align-items: center;
+                gap: 0.5rem;
+                font-size: 0.875rem;
+                font-weight: 500;
+                line-height: 1;
+            }
+
+            /* Stat card */
+            .stat-value {
+                font-size: 1.5rem;
+                font-weight: 700;
+                font-variant-numeric: tabular-nums;
+                letter-spacing: -0.02em;
+                margin-top: 0.25rem;
+            }
+
+            /* Speed buttons */
+            .speed-btn {
+                display: flex;
+                flex: 1;
+                flex-direction: column;
+                align-items: center;
+                gap: 0.25rem;
+                padding: 0.5rem;
+                border-radius: 0.375rem;
+                border: 1px solid var(--border);
+                background: var(--bg-card);
+                font-size: 0.875rem;
+                font-weight: 600;
+                transition: all 0.15s;
+                cursor: pointer;
+            }
+            .speed-btn:hover {
+                background: color-mix(in srgb, var(--fg) 5%, transparent);
+            }
+            .speed-btn.active {
+                border-color: var(--primary);
+                background: var(--primary);
+                color: var(--primary-fg);
+            }
+            .speed-btn:focus-visible {
+                outline: 2px solid var(--primary);
+                outline-offset: 2px;
+            }
+
+            /* Member badge */
+            .member-badge {
+                display: inline-flex;
+                align-items: center;
+                border-radius: 999px;
+                border: 1px solid var(--border);
+                padding: 0.375rem 0.75rem;
+                font-size: 0.875rem;
+                font-weight: 500;
+                transition: all 0.15s;
+                cursor: pointer;
+                background: var(--bg-card);
+                color: var(--fg);
+            }
+            .member-badge:hover {
+                background: color-mix(in srgb, var(--fg) 5%, transparent);
+            }
+            .member-badge.active {
+                border-color: var(--primary);
+                background: var(--primary);
+                color: var(--primary-fg);
+            }
+            .member-badge .team-label {
+                font-size: 0.75rem;
+                color: var(--muted-fg);
+                margin-right: 0.25rem;
+            }
+            .member-badge.active .team-label {
+                color: color-mix(in srgb, var(--primary-fg) 60%, transparent);
+            }
+
+            /* Point display */
+            .point-display {
+                padding: 0.5rem 0.75rem;
+                border-radius: 0.375rem;
+                border: 1px solid var(--border);
+                background: color-mix(in srgb, var(--fg) 5%, transparent);
+                font-family: var(--font-mono);
+                font-size: 0.875rem;
+            }
+
+            /* Field */
+            .field-wrap {
+                position: relative;
+                width: 100%;
+                aspect-ratio: 6/5;
+                overflow: hidden;
+                border-radius: var(--radius);
+                border: 1px solid var(--border);
+                background: #aeb6c4;
+                cursor: crosshair;
+                user-select: none;
+            }
+            .field-extra-zone {
+                pointer-events: none;
+                position: absolute;
+                inset-inline: 0;
+                top: 0;
+                height: 16%;
+                background: #8c95a6;
+                z-index: 1;
+            }
+            .field-extra-zone span {
+                position: absolute;
+                left: 0.75rem;
+                top: 0.375rem;
+                font-size: 10px;
+                font-weight: 500;
+                letter-spacing: 0.02em;
+                text-transform: uppercase;
+                color: #eaeaea;
+            }
+            .field-extra-zone-v {
+                pointer-events: none;
+                position: absolute;
+                inset-block: 0;
+                left: 0;
+                width: 16%;
+                background: #8c95a6;
+                z-index: 1;
+            }
+            .field-grid-svg {
+                pointer-events: none;
+                position: absolute;
+                inset: 0;
+                width: 100%;
+                height: 100%;
+                z-index: 2;
+            }
+            .field-diamond {
+                pointer-events: none;
+                position: absolute;
+                inset: 0;
+                width: 100%;
+                height: 100%;
+                z-index: 3;
+            }
+            .field-base {
+                pointer-events: none;
+                position: absolute;
+                z-index: 4;
+                transform: translate(-50%, -50%);
+            }
+            .field-base .base-dot {
+                display: block;
+                width: 0.625rem;
+                height: 0.625rem;
+                border-radius: 1px;
+                background: #f4f4f4;
+                transform: rotate(45deg);
+            }
+            .field-base .mound-dot {
+                display: block;
+                width: 0.625rem;
+                height: 0.625rem;
+                border-radius: 50%;
+                background: #ba3434;
+            }
+            .field-base .base-label {
+                position: absolute;
+                left: 50%;
+                top: 0.75rem;
+                transform: translateX(-50%);
+                font-size: 27px;
+                font-weight: 500;
+                color: #f4f4f4;
+                white-space: nowrap;
+            }
+            .field-point {
+                pointer-events: none;
+                position: absolute;
+                width: 0.75rem;
+                height: 0.75rem;
+                border-radius: 50%;
+                transform: translate(-50%, -50%);
+                z-index: 5;
+                box-shadow: 0 0 0 2px rgba(244, 244, 244, 0.7);
+            }
+            .field-selected {
+                pointer-events: none;
+                position: absolute;
+                z-index: 6;
+                width: 1.25rem;
+                height: 1.25rem;
+                border-radius: 50%;
+                transform: translate(-50%, -50%);
+                border: 2px solid #f4f4f4;
+                background: #3c5496;
+                box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+            }
+            .legend-dot {
+                width: 0.75rem;
+                height: 0.75rem;
+                border-radius: 50%;
+                box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.6);
+                flex-shrink: 0;
+            }
+
+            /* Settings team card */
+            .team-card {
+                display: flex;
+                flex-direction: column;
+                gap: 0.75rem;
+                padding: 1rem;
+                border-radius: var(--radius);
+                background: var(--bg-card);
+                box-shadow: 0 0 0 1px
+                    color-mix(in srgb, var(--fg) 10%, transparent);
+            }
+            .member-row {
+                display: flex;
+                align-items: center;
+                justify-content: space-between;
+                padding: 0.375rem 0.75rem;
+                border-radius: 0.375rem;
+                border: 1px solid var(--border);
+                background: color-mix(in srgb, var(--fg) 3%, transparent);
+                font-size: 0.875rem;
+            }
+            .member-row-empty {
+                padding: 0.5rem 0.75rem;
+                border-radius: 0.375rem;
+                border: 1px dashed var(--border);
+                text-align: center;
+                font-size: 0.75rem;
+                color: var(--muted-fg);
+            }
+            .member-del {
+                color: var(--muted-fg);
+                transition: color 0.15s;
+                cursor: pointer;
+                padding: 2px;
+            }
+            .member-del:hover {
+                color: var(--accent-red);
+            }
+
+            /* Analysis */
+            .stat-grid {
+                display: grid;
+                grid-template-columns: repeat(2, 1fr);
+                gap: 1rem;
+            }
+            @media (min-width: 1024px) {
+                .stat-grid {
+                    grid-template-columns: repeat(4, 1fr);
+                }
+            }
+            .chart-grid {
+                display: grid;
+                gap: 1.5rem;
+            }
+            @media (min-width: 1024px) {
+                .chart-grid {
+                    grid-template-columns: repeat(2, 1fr);
+                }
+            }
+            .chart-card {
+                display: flex;
+                flex-direction: column;
+                gap: 1rem;
+                padding: 1rem;
+                border-radius: var(--radius);
+                background: var(--bg-card);
+                box-shadow: 0 0 0 1px
+                    color-mix(in srgb, var(--fg) 10%, transparent);
+            }
+            .chart-title {
+                font-size: 0.875rem;
+                font-weight: 600;
+            }
+            .chart-container {
+                width: 100%;
+                display: flex;
+                justify-content: center;
+            }
+            .chart-container.pie svg {
+                max-height: 18rem;
+                aspect-ratio: 1;
+            }
+            .chart-container.bar svg {
+                height: 20rem;
+                width: 100%;
+            }
+            .chart-legend {
+                display: flex;
+                flex-wrap: wrap;
+                gap: 0.25rem 1rem;
+                font-size: 0.75rem;
+                margin-top: 0.5rem;
+                justify-content: center;
+            }
+            .chart-legend-item {
+                display: flex;
+                align-items: center;
+                gap: 0.375rem;
+            }
+            .chart-legend-dot {
+                width: 0.625rem;
+                height: 0.625rem;
+                border-radius: 50%;
+                flex-shrink: 0;
+            }
+
+            /* Loading */
+            .loading-state {
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                padding: 3rem 1rem;
+                text-align: center;
+                font-size: 0.875rem;
+                color: var(--muted-fg);
+            }
+            .empty-state {
+                display: flex;
+                flex-direction: column;
+                align-items: center;
+                gap: 0.75rem;
+                padding: 3rem 1rem;
+                text-align: center;
+            }
+            .empty-state p {
+                font-size: 0.875rem;
+                color: var(--muted-fg);
+            }
+
+            /* Toast */
+            .toast {
+                position: fixed;
+                bottom: 1.5rem;
+                left: 50%;
+                transform: translateX(-50%);
+                z-index: 50;
+                padding: 0.5rem 1rem;
+                border-radius: 0.5rem;
+                background: var(--primary);
+                color: var(--primary-fg);
+                font-size: 0.875rem;
+                font-weight: 500;
+                opacity: 0;
+                transition: opacity 0.3s;
+                pointer-events: none;
+            }
+            .toast.show {
+                opacity: 1;
+            }
+        </style>
+    </head>
+    <body>
+        <header class="site-header">
+            <a href="#" class="brand">
+                <span class="logo-icon"><span class="logo-dot"></span></span>
+                <span>キックベース分析</span>
+            </a>
+            <nav class="site-nav">
+                <a href="#" class="nav-link active" data-page="record">
+                    <svg
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        stroke-width="2"
+                        stroke-linecap="round"
+                        stroke-linejoin="round"
+                    >
+                        <path
+                            d="M9 5H7a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2h-2"
+                        />
+                        <rect x="9" y="3" width="6" height="4" rx="1" />
+                        <path d="M9 14l2 2 4-4" />
+                    </svg>
+                    <span>記録</span>
+                </a>
+                <a href="#analytics" class="nav-link" data-page="analytics">
+                    <svg
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        stroke-width="2"
+                        stroke-linecap="round"
+                        stroke-linejoin="round"
+                    >
+                        <path d="M3 3v18h18" />
+                        <path d="M7 16v-3" />
+                        <path d="M12 16v-7" />
+                        <path d="M17 16v-5" />
+                    </svg>
+                    <span>分析</span>
+                </a>
+                <a href="#settings" class="nav-link" data-page="settings">
+                    <svg
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        stroke-width="2"
+                        stroke-linecap="round"
+                        stroke-linejoin="round"
+                    >
+                        <path
+                            d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"
+                        />
+                        <circle cx="12" cy="12" r="3" />
+                    </svg>
+                    <span>設定</span>
+                </a>
+            </nav>
+        </header>
+
+        <!-- === RECORD PAGE === -->
+        <section id="page-record" class="page active">
+            <div class="page-inner">
+                <div class="mb-6">
+                    <h1 class="text-2xl">プレー記録</h1>
+                    <p class="mt-1 text-sm text-muted">
+                        蹴ったボールの速さ・落下地点・アウトの有無を記録します。
+                    </p>
+                </div>
+
+                <div id="record-loading" class="loading-state">
+                    読み込み中...
+                </div>
+
+                <div id="record-empty" class="hidden">
+                    <div class="card">
+                        <div class="empty-state">
+                            <p>
+                                まずは設定ページでチームとメンバーを追加してください。
+                            </p>
+                            <a href="#settings" class="btn btn-primary"
+                                >設定へ</a
+                            >
+                        </div>
+                    </div>
+                </div>
+
+                <div id="record-form" class="hidden">
+                    <div
+                        class="grid gap-6"
+                        style="grid-template-columns: 1.3fr 1fr"
+                    >
+                        <!-- Field -->
+                        <div class="flex flex-col gap-3">
+                            <div id="record-field" class="field-wrap">
+                                <div class="field-extra-zone">
+                                    <span>extra zone</span>
+                                </div>
+                                <div class="field-extra-zone-v"></div>
+                                <svg
+                                    class="field-grid-svg"
+                                    aria-hidden="true"
+                                ></svg>
+                                <svg
+                                    class="field-diamond"
+                                    viewBox="0 0 100 100"
+                                    preserveAspectRatio="none"
+                                    aria-hidden="true"
+                                >
+                                    <polygon
+                                        points="88,88 88,56 56,56 56,88"
+                                        fill="#3c5496"
+                                        fill-opacity="0.3"
+                                        stroke="#f4f4f4"
+                                        stroke-opacity="0.6"
+                                        stroke-width="0.6"
+                                    />
+                                </svg>
+                                <div id="field-bases">
+                                    <div
+                                        class="field-base"
+                                        style="left: 88%; top: 88%"
+                                    >
+                                        <div class="base-dot"></div>
+                                        <span class="base-label">本塁</span>
+                                    </div>
+                                    <div
+                                        class="field-base"
+                                        style="left: 88%; top: 56%"
+                                    >
+                                        <div class="base-dot"></div>
+                                        <span class="base-label">一塁</span>
+                                    </div>
+                                    <div
+                                        class="field-base"
+                                        style="left: 56%; top: 56%"
+                                    >
+                                        <div class="base-dot"></div>
+                                        <span class="base-label">二塁</span>
+                                    </div>
+                                    <div
+                                        class="field-base"
+                                        style="left: 56%; top: 88%"
+                                    >
+                                        <div class="base-dot"></div>
+                                        <span class="base-label">三塁</span>
+                                    </div>
+                                    <div
+                                        class="field-base"
+                                        style="left: 72%; top: 72%"
+                                    >
+                                        <div class="mound-dot"></div>
+                                    </div>
+                                </div>
+                                <div id="field-points"></div>
+                                <div
+                                    id="record-selected"
+                                    class="field-selected"
+                                    style="display: none"
+                                ></div>
+                            </div>
+                            <div
+                                class="flex flex-wrap items-center gap-4 text-xs text-muted"
+                            >
+                                <span class="flex items-center gap-1.5"
+                                    ><span
+                                        class="legend-dot"
+                                        style="background: oklch(0.72 0.18 90)"
+                                    ></span
+                                    >セーフ</span
+                                >
+                                <span class="flex items-center gap-1.5"
+                                    ><span
+                                        class="legend-dot"
+                                        style="background: oklch(0.62 0.2 25)"
+                                    ></span
+                                    >アウト</span
+                                >
+                                <span
+                                    >フィールドをクリックして落下地点を選択</span
+                                >
+                            </div>
+                        </div>
+
+                        <!-- Form -->
+                        <div class="card">
+                            <div
+                                class="card-content flex flex-col gap-5"
+                                style="padding: 0.75rem 0"
+                            >
+                                <!-- Team tabs -->
+                                <div class="flex flex-col gap-2">
+                                    <label class="label">チーム</label>
+                                    <div
+                                        id="record-team-tabs"
+                                        class="tab-list"
+                                    ></div>
+                                </div>
+
+                                <!-- Speed -->
+                                <div class="flex flex-col gap-2">
+                                    <label class="label"
+                                        >ボールの速さ（5段階）</label
+                                    >
+                                    <div
+                                        id="record-speed"
+                                        class="flex gap-2"
+                                    ></div>
+                                    <span
+                                        id="record-speed-label"
+                                        class="text-xs text-muted"
+                                        >普通</span
+                                    >
+                                </div>
+
+                                <!-- Landing point -->
+                                <div class="flex flex-col gap-2">
+                                    <label class="label">落下地点 (x, y)</label>
+                                    <div
+                                        id="record-point-display"
+                                        class="point-display text-muted"
+                                    >
+                                        フィールドをクリックして選択
+                                    </div>
+                                </div>
+
+                                <!-- Out type -->
+                                <div class="flex flex-col gap-2">
+                                    <label class="label">アウト</label>
+                                    <div class="select-wrap">
+                                        <span
+                                            id="record-out-label"
+                                            class="select-label"
+                                            >no（アウトなし）</span
+                                        >
+                                        <svg
+                                            class="select-arrow"
+                                            viewBox="0 0 24 24"
+                                            fill="none"
+                                            stroke="currentColor"
+                                            stroke-width="2"
+                                        >
+                                            <path d="m6 9 6 6 6-6" />
+                                        </svg>
+                                        <select
+                                            id="record-out-select"
+                                            aria-label="アウトの種類"
+                                        >
+                                            <option value="no">
+                                                no（アウトなし）
+                                            </option>
+                                            <option value="fly">
+                                                フライアウト
+                                            </option>
+                                            <option value="force">
+                                                フォースアウト
+                                            </option>
+                                            <option value="tag">
+                                                タッチアウト
+                                            </option>
+                                            <option value="foul">
+                                                ファウル
+                                            </option>
+                                        </select>
+                                    </div>
+                                </div>
+
+                                <!-- Member -->
+                                <div class="flex flex-col gap-2">
+                                    <label class="label"
+                                        >メンバー（蹴った人）</label
+                                    >
+                                    <div
+                                        id="record-members"
+                                        class="flex flex-wrap gap-2"
+                                    ></div>
+                                </div>
+
+                                <button
+                                    id="record-save-btn"
+                                    class="btn btn-primary mt-1"
+                                    disabled
+                                >
+                                    記録する
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- === ANALYTICS PAGE === -->
+        <section id="page-analytics" class="page">
+            <div class="page-inner">
+                <div class="mb-6">
+                    <h1 class="text-2xl">分析</h1>
+                    <p class="mt-1 text-sm text-muted">
+                        落下地点・アウト率・メンバー別の傾向を可視化します。
+                    </p>
+                </div>
+
+                <div id="analytics-empty" class="hidden">
+                    <div class="card">
+                        <div
+                            class="card-content"
+                            style="padding: 3rem 1rem; text-align: center"
+                        >
+                            <p class="text-sm text-muted">
+                                まだ記録がありません。記録ページからプレーを追加してください。
+                            </p>
+                        </div>
+                    </div>
+                </div>
+
+                <div id="analytics-content" class="hidden flex flex-col gap-6">
+                    <!-- Team filter -->
+                    <div id="analytics-team-tabs" class="tab-list"></div>
+
+                    <!-- Stat cards -->
+                    <div class="stat-grid" id="analytics-stats"></div>
+
+                    <div class="chart-grid">
+                        <!-- Field heatmap -->
+                        <div class="chart-card">
+                            <div class="chart-title">落下地点の分布</div>
+                            <div class="flex flex-col gap-3">
+                                <div
+                                    id="analytics-field"
+                                    class="field-wrap"
+                                    style="cursor: default"
+                                >
+                                    <div class="field-extra-zone">
+                                        <span>extra zone</span>
+                                    </div>
+                                    <div class="field-extra-zone-v"></div>
+                                    <svg
+                                        class="field-grid-svg"
+                                        aria-hidden="true"
+                                    ></svg>
+                                    <svg
+                                        class="field-diamond"
+                                        viewBox="0 0 100 100"
+                                        preserveAspectRatio="none"
+                                        aria-hidden="true"
+                                    >
+                                        <polygon
+                                            points="88,88 88,56 56,56 56,88"
+                                            fill="#3c5496"
+                                            fill-opacity="0.3"
+                                            stroke="#f4f4f4"
+                                            stroke-opacity="0.6"
+                                            stroke-width="0.6"
+                                        />
+                                    </svg>
+                                    <div id="analytics-bases">
+                                        <div
+                                            class="field-base"
+                                            style="left: 88%; top: 88%"
+                                        >
+                                            <div class="base-dot"></div>
+                                            <span class="base-label">本塁</span>
+                                        </div>
+                                        <div
+                                            class="field-base"
+                                            style="left: 88%; top: 56%"
+                                        >
+                                            <div class="base-dot"></div>
+                                            <span class="base-label">一塁</span>
+                                        </div>
+                                        <div
+                                            class="field-base"
+                                            style="left: 56%; top: 56%"
+                                        >
+                                            <div class="base-dot"></div>
+                                            <span class="base-label">二塁</span>
+                                        </div>
+                                        <div
+                                            class="field-base"
+                                            style="left: 56%; top: 88%"
+                                        >
+                                            <div class="base-dot"></div>
+                                            <span class="base-label">三塁</span>
+                                        </div>
+                                        <div
+                                            class="field-base"
+                                            style="left: 72%; top: 72%"
+                                        >
+                                            <div class="mound-dot"></div>
+                                        </div>
+                                    </div>
+                                    <div id="analytics-field-points"></div>
+                                </div>
+                                <div class="flex gap-4 text-xs text-muted">
+                                    <span class="flex items-center gap-1.5"
+                                        ><span
+                                            class="legend-dot"
+                                            style="
+                                                background: oklch(0.72 0.18 90);
+                                            "
+                                        ></span
+                                        >セーフ</span
+                                    >
+                                    <span class="flex items-center gap-1.5"
+                                        ><span
+                                            class="legend-dot"
+                                            style="
+                                                background: oklch(0.62 0.2 25);
+                                            "
+                                        ></span
+                                        >アウト</span
+                                    >
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Out type pie -->
+                        <div class="chart-card">
+                            <div class="chart-title">アウトの種類</div>
+                            <div
+                                id="analytics-pie-wrap"
+                                class="chart-container pie"
+                            ></div>
+                            <div
+                                id="analytics-pie-empty"
+                                class="hidden text-center text-sm text-muted"
+                                style="padding: 3rem 0"
+                            >
+                                アウトの記録がありません。
+                            </div>
+                            <div
+                                id="analytics-pie-legend"
+                                class="chart-legend"
+                            ></div>
+                        </div>
+                    </div>
+
+                    <!-- Per-member bar chart -->
+                    <div class="chart-card">
+                        <div class="chart-title">メンバー別アウト率</div>
+                        <div
+                            id="analytics-bar-wrap"
+                            class="chart-container bar"
+                        ></div>
+                        <div
+                            id="analytics-bar-empty"
+                            class="hidden text-center text-sm text-muted"
+                            style="padding: 3rem 0"
+                        >
+                            データがありません。
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- === SETTINGS PAGE === -->
+        <section id="page-settings" class="page">
+            <div class="page-inner">
+                <div class="mb-6">
+                    <h1 class="text-2xl">設定</h1>
+                    <p class="mt-1 text-sm text-muted">
+                        チームの追加と、チームごとのメンバー管理を行います。
+                    </p>
+                </div>
+
+                <div class="card mb-6">
+                    <div class="card-header">
+                        <div class="card-title">チームを追加</div>
+                    </div>
+                    <div class="card-content">
+                        <form id="settings-add-team-form" class="flex gap-2">
+                            <input
+                                type="text"
+                                id="settings-new-team"
+                                class="input flex-1"
+                                placeholder="チーム名"
+                                required
+                            />
+                            <button type="submit" class="btn btn-primary">
+                                <svg
+                                    viewBox="0 0 24 24"
+                                    fill="none"
+                                    stroke="currentColor"
+                                    stroke-width="2"
+                                    width="16"
+                                    height="16"
+                                >
+                                    <path d="M5 12h14M12 5v14" />
+                                </svg>
+                                追加
+                            </button>
+                        </form>
+                    </div>
+                </div>
+
+                <div
+                    id="settings-empty"
+                    class="hidden text-center text-sm text-muted"
+                    style="padding: 2rem 0"
+                >
+                    まだチームがありません。上のフォームから追加してください。
+                </div>
+
+                <div
+                    id="settings-team-list"
+                    class="grid gap-4 md:grid-cols-2"
+                ></div>
+
+                <div class="card mt-6">
+                    <div class="card-header">
+                        <div class="card-title">
+                            データのエクスポート / インポート
+                        </div>
+                    </div>
+                    <div class="card-content">
+                        <p class="text-sm text-muted mb-4">
+                            データをJSONファイルに書き出し／読み込みします。
+                        </p>
+                        <div class="flex gap-2 flex-wrap">
+                            <button
+                                id="settings-export-btn"
+                                class="btn btn-primary"
+                            >
+                                エクスポート
+                            </button>
+                            <button
+                                id="settings-import-btn"
+                                class="btn btn-secondary"
+                            >
+                                インポート
+                            </button>
+                            <input
+                                type="file"
+                                id="settings-import-file"
+                                accept=".json,application/json"
+                                style="display: none"
+                            />
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <div id="toast" class="toast"></div>
+
+        <script>
+            (function () {
+                "use strict";
+
+                const STORAGE_KEY = "kickbase-analytics-v1";
+                const OUT_TYPES = [
+                    { value: "fly", label: "フライアウト" },
+                    { value: "force", label: "フォースアウト" },
+                    { value: "tag", label: "タッチアウト" },
+                    { value: "foul", label: "ファウル" },
+                ];
+                const SPEED_LEVELS = [
+                    { value: 1, label: "とても遅い" },
+                    { value: 2, label: "遅い" },
+                    { value: 3, label: "普通" },
+                    { value: 4, label: "速い" },
+                    { value: 5, label: "とても速い" },
+                ];
+                const SEED = {
+                    teams: [
+                        {
+                            id: "team-1",
+                            name: "レッドソックス",
+                            members: [
+                                { id: "m-1", name: "田中" },
+                                { id: "m-2", name: "佐藤" },
+                                { id: "m-3", name: "鈴木" },
+                            ],
+                        },
+                        {
+                            id: "team-2",
+                            name: "ブルージェイズ",
+                            members: [
+                                { id: "m-4", name: "高橋" },
+                                { id: "m-5", name: "伊藤" },
+                            ],
+                        },
+                    ],
+                    plays: [],
+                };
+                const COLS = 6;
+                const ROWS = 5;
+
+                // --- Store ---
+                let _data = null;
+                const _listeners = new Set();
+
+                function load() {
+                    try {
+                        const raw = localStorage.getItem(STORAGE_KEY);
+                        if (!raw) return JSON.parse(JSON.stringify(SEED));
+                        const parsed = JSON.parse(raw);
+                        return {
+                            teams: Array.isArray(parsed.teams)
+                                ? parsed.teams
+                                : [],
+                            plays: Array.isArray(parsed.plays)
+                                ? parsed.plays
+                                : [],
+                        };
+                    } catch {
+                        return JSON.parse(JSON.stringify(SEED));
+                    }
+                }
+
+                function save(data) {
+                    localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+                }
+
+                function getData() {
+                    if (!_data) _data = load();
+                    return _data;
+                }
+
+                function setData(updater) {
+                    const next = updater(getData());
+                    _data = next;
+                    save(next);
+                    _listeners.forEach((fn) => fn());
+                }
+
+                function uid(prefix) {
+                    return (
+                        prefix +
+                        "-" +
+                        Date.now().toString(36) +
+                        "-" +
+                        Math.random().toString(36).slice(2, 7)
+                    );
+                }
+
+                function subscribe(fn) {
+                    _listeners.add(fn);
+                    return () => _listeners.delete(fn);
+                }
+
+                // --- Field grid SVG lines ---
+                function renderGridLines(svgEl) {
+                    svgEl.innerHTML = "";
+                    const ns = "http://www.w3.org/2000/svg";
+                    for (let i = 0; i < COLS - 1; i++) {
+                        const left = ((i + 1) / COLS) * 100;
+                        const line = document.createElementNS(ns, "line");
+                        line.setAttribute("x1", left + "%");
+                        line.setAttribute("y1", "0");
+                        line.setAttribute("x2", left + "%");
+                        line.setAttribute("y2", "100%");
+                        line.setAttribute("stroke", "#f4f4f4");
+                        line.setAttribute("stroke-width", "1");
+                        line.setAttribute("stroke-opacity", "0.35");
+                        svgEl.appendChild(line);
+                    }
+                    for (let i = 0; i < ROWS - 1; i++) {
+                        const top = ((i + 1) / ROWS) * 100;
+                        const line = document.createElementNS(ns, "line");
+                        line.setAttribute("x1", "0");
+                        line.setAttribute("y1", top + "%");
+                        line.setAttribute("x2", "100%");
+                        line.setAttribute("y2", top + "%");
+                        line.setAttribute("stroke", "#f4f4f4");
+                        line.setAttribute("stroke-width", "1");
+                        line.setAttribute("stroke-opacity", "0.35");
+                        svgEl.appendChild(line);
+                    }
+                }
+
+                // --- Navigation ---
+                function navigate() {
+                    const hash = location.hash || "#";
+                    document
+                        .querySelectorAll(".nav-link")
+                        .forEach((a) => a.classList.remove("active"));
+                    document
+                        .querySelectorAll(".page")
+                        .forEach((p) => p.classList.remove("active"));
+
+                    let page = "record";
+                    if (hash === "#analytics") page = "analytics";
+                    else if (hash === "#settings") page = "settings";
+
+                    const link = document.querySelector(
+                        `.nav-link[data-page="${page}"]`,
+                    );
+                    if (link) link.classList.add("active");
+
+                    const el = document.getElementById("page-" + page);
+                    if (el) el.classList.add("active");
+
+                    if (page === "analytics") renderAnalytics();
+                    if (page === "settings") renderSettings();
+                    if (page === "record") renderRecordForm();
+                }
+
+                window.addEventListener("hashchange", navigate);
+
+                // --- Toast ---
+                let _toastTimer = null;
+                function toast(msg) {
+                    const el = document.getElementById("toast");
+                    el.textContent = msg;
+                    el.classList.add("show");
+                    clearTimeout(_toastTimer);
+                    _toastTimer = setTimeout(
+                        () => el.classList.remove("show"),
+                        1500,
+                    );
+                }
+
+                // ============================================================
+                // RECORD FORM
+                // ============================================================
+                let _recState = {
+                    teamId: "",
+                    memberId: "",
+                    speed: 3,
+                    point: null,
+                    outValue: "no",
+                };
+
+                function renderRecordForm() {
+                    const data = getData();
+                    const loading = document.getElementById("record-loading");
+                    const empty = document.getElementById("record-empty");
+                    const form = document.getElementById("record-form");
+
+                    loading.style.display = "none";
+                    if (!data.teams.length) {
+                        empty.classList.remove("hidden");
+                        form.classList.add("hidden");
+                        return;
+                    }
+                    empty.classList.add("hidden");
+                    form.classList.remove("hidden");
+
+                    const activeTeamId = _recState.teamId || data.teams[0].id;
+                    _recState.teamId = activeTeamId;
+
+                    // Team tabs
+                    const tabsEl = document.getElementById("record-team-tabs");
+                    tabsEl.innerHTML = "";
+                    data.teams.forEach((t) => {
+                        const btn = document.createElement("button");
+                        btn.className =
+                            "tab-trigger" +
+                            (t.id === activeTeamId ? " active" : "");
+                        btn.textContent = t.name;
+                        btn.dataset.teamId = t.id;
+                        btn.addEventListener("click", () => {
+                            _recState.teamId = t.id;
+                            _recState.memberId = "";
+                            renderRecordForm();
+                        });
+                        tabsEl.appendChild(btn);
+                    });
+
+                    // Speed buttons
+                    const speedEl = document.getElementById("record-speed");
+                    speedEl.innerHTML = "";
+                    SPEED_LEVELS.forEach((lvl) => {
+                        const btn = document.createElement("button");
+                        btn.type = "button";
+                        btn.className =
+                            "speed-btn" +
+                            (lvl.value === _recState.speed ? " active" : "");
+                        btn.innerHTML = "<span>" + lvl.value + "</span>";
+                        btn.title = lvl.label;
+                        btn.addEventListener("click", () => {
+                            _recState.speed = lvl.value;
+                            renderRecordForm();
+                        });
+                        speedEl.appendChild(btn);
+                    });
+                    document.getElementById("record-speed-label").textContent =
+                        SPEED_LEVELS.find(
+                            (l) => l.value === _recState.speed,
+                        ).label;
+
+                    // Point display
+                    const pointDisplay = document.getElementById(
+                        "record-point-display",
+                    );
+                    if (_recState.point) {
+                        pointDisplay.textContent =
+                            _recState.point.x.toFixed(2) +
+                            ", " +
+                            _recState.point.y.toFixed(2);
+                        pointDisplay.className = "point-display";
+                    } else {
+                        pointDisplay.textContent =
+                            "フィールドをクリックして選択";
+                        pointDisplay.className = "point-display text-muted";
+                    }
+
+                    // Out select
+                    const outSelect =
+                        document.getElementById("record-out-select");
+                    outSelect.value = _recState.outValue;
+                    document.getElementById("record-out-label").textContent =
+                        outSelect.options[outSelect.selectedIndex].text;
+                    outSelect.onchange = function () {
+                        _recState.outValue = this.value;
+                        document.getElementById(
+                            "record-out-label",
+                        ).textContent = this.options[this.selectedIndex].text;
+                    };
+
+                    // Members
+                    const membersEl = document.getElementById("record-members");
+                    membersEl.innerHTML = "";
+                    const activeTeam = data.teams.find(
+                        (t) => t.id === activeTeamId,
+                    );
+                    const teamMembers = activeTeam ? activeTeam.members : [];
+                    if (teamMembers.length) {
+                        teamMembers.forEach((m) => {
+                            const btn = document.createElement("button");
+                            btn.type = "button";
+                            btn.className =
+                                "member-badge" +
+                                (m.id === _recState.memberId ? " active" : "");
+                            btn.textContent = m.name;
+                            btn.addEventListener("click", () => {
+                                _recState.memberId = m.id;
+                                _recState.teamId = activeTeamId;
+                                renderRecordForm();
+                            });
+                            membersEl.appendChild(btn);
+                        });
+                    } else {
+                        membersEl.innerHTML =
+                            '<p class="text-sm text-muted">メンバーが未登録です</p>';
+                    }
+
+                    // Field recent points
+                    renderFieldPoints(
+                        "record",
+                        data.plays
+                            .filter((p) => p.teamId === activeTeamId)
+                            .slice(-12),
+                    );
+
+                    // Selected point marker
+                    updateSelectedMarker("record");
+
+                    // Save button
+                    const selMember = teamMembers.find(
+                        (m) => m.id === _recState.memberId,
+                    );
+                    const canSave = Boolean(selMember && _recState.point);
+                    const saveBtn = document.getElementById("record-save-btn");
+                    saveBtn.disabled = !canSave;
+                    saveBtn.onclick = function () {
+                        if (!canSave || !_recState.point || !selMember) return;
+                        const outed = _recState.outValue !== "no";
+                        setData((prev) => ({
+                            ...prev,
+                            plays: [
+                                ...prev.plays,
+                                {
+                                    id: uid("play"),
+                                    teamId: activeTeamId,
+                                    memberId: _recState.memberId,
+                                    speed: _recState.speed,
+                                    x: _recState.point.x,
+                                    y: _recState.point.y,
+                                    outed,
+                                    outType: outed ? _recState.outValue : null,
+                                    createdAt: Date.now(),
+                                },
+                            ],
+                        }));
+                        _recState.point = null;
+                        _recState.outValue = "no";
+                        _recState.speed = 3;
+                        toast("保存しました");
+                        renderRecordForm();
+                    };
+                }
+
+                // --- Field interaction ---
+                function setupFieldInteraction(prefix) {
+                    const wrap = document.getElementById(prefix + "-field");
+                    if (!wrap) return;
+                    const handler = (e) => {
+                        if (prefix !== "record") return;
+                        const rect = wrap.getBoundingClientRect();
+                        const x = Math.min(
+                            1,
+                            Math.max(0, (e.clientX - rect.left) / rect.width),
+                        );
+                        const y = Math.min(
+                            1,
+                            Math.max(0, (e.clientY - rect.top) / rect.height),
+                        );
+                        _recState.point = { x, y };
+                        renderRecordForm();
+                    };
+                    wrap.onclick = handler;
+                }
+
+                function renderFieldPoints(prefix, points) {
+                    const container = document.getElementById(
+                        prefix + "-field-points",
+                    );
+                    if (!container) return;
+                    container.innerHTML = "";
+                    points.forEach((p) => {
+                        const dot = document.createElement("span");
+                        dot.className = "field-point";
+                        dot.style.left = p.x * 100 + "%";
+                        dot.style.top = p.y * 100 + "%";
+                        dot.style.background = p.outed
+                            ? "oklch(0.62 0.2 25)"
+                            : "oklch(0.72 0.18 90)";
+                        container.appendChild(dot);
+                    });
+                }
+
+                function updateSelectedMarker(prefix) {
+                    const el = document.getElementById(prefix + "-selected");
+                    if (!el) return;
+                    if (prefix === "record" && _recState.point) {
+                        el.style.display = "block";
+                        el.style.left = _recState.point.x * 100 + "%";
+                        el.style.top = _recState.point.y * 100 + "%";
+                    } else {
+                        el.style.display = "none";
+                    }
+                }
+
+                // ============================================================
+                // ANALYTICS
+                // ============================================================
+                let _analyticsTeamFilter = "all";
+
+                function renderAnalytics() {
+                    const data = getData();
+                    const empty = document.getElementById("analytics-empty");
+                    const content =
+                        document.getElementById("analytics-content");
+
+                    if (!data.plays.length) {
+                        empty.classList.remove("hidden");
+                        content.classList.add("hidden");
+                        return;
+                    }
+                    empty.classList.add("hidden");
+                    content.classList.remove("hidden");
+
+                    // Team filters
+                    const tabsEl = document.getElementById(
+                        "analytics-team-tabs",
+                    );
+                    tabsEl.innerHTML = "";
+                    const allFilters = [
+                        { id: "all", name: "全チーム" },
+                        ...data.teams,
+                    ];
+                    allFilters.forEach((t) => {
+                        const btn = document.createElement("button");
+                        btn.className =
+                            "tab-trigger" +
+                            (t.id === _analyticsTeamFilter ? " active" : "");
+                        btn.textContent = t.name;
+                        btn.addEventListener("click", () => {
+                            _analyticsTeamFilter = t.id;
+                            renderAnalytics();
+                        });
+                        tabsEl.appendChild(btn);
+                    });
+
+                    const filtered =
+                        _analyticsTeamFilter === "all"
+                            ? data.plays
+                            : data.plays.filter(
+                                  (p) => p.teamId === _analyticsTeamFilter,
+                              );
+
+                    const total = filtered.length;
+                    const outs = filtered.filter((p) => p.outed);
+                    const outRate = total
+                        ? Math.round((outs.length / total) * 100)
+                        : 0;
+                    const avgSpeed = total
+                        ? (
+                              filtered.reduce((s, p) => s + p.speed, 0) / total
+                          ).toFixed(1)
+                        : "0";
+
+                    document.getElementById("analytics-stats").innerHTML = `
+    <div class="card"><div class="card-content"><p class="text-xs font-medium text-muted">総記録数</p><p class="stat-value">${total}</p></div></div>
+    <div class="card"><div class="card-content"><p class="text-xs font-medium text-muted">アウト数</p><p class="stat-value">${outs.length}</p></div></div>
+    <div class="card"><div class="card-content"><p class="text-xs font-medium text-muted">アウト率</p><p class="stat-value">${outRate}%</p></div></div>
+    <div class="card"><div class="card-content"><p class="text-xs font-medium text-muted">平均速さ（5段階）</p><p class="stat-value">${avgSpeed}</p></div></div>
+  `;
+
+                    // Field points
+                    renderFieldPoints("analytics", filtered);
+
+                    // Out type pie
+                    renderPieChart(outs);
+
+                    // Member bar chart
+                    renderBarChart(filtered, data.teams);
+                }
+
+                function renderPieChart(outs) {
+                    const wrap = document.getElementById("analytics-pie-wrap");
+                    const empty = document.getElementById(
+                        "analytics-pie-empty",
+                    );
+                    const legend = document.getElementById(
+                        "analytics-pie-legend",
+                    );
+
+                    const counts = {};
+                    outs.forEach((p) => {
+                        if (p.outType)
+                            counts[p.outType] = (counts[p.outType] || 0) + 1;
+                    });
+                    const entries = OUT_TYPES.map((t) => ({
+                        ...t,
+                        value: counts[t.value] || 0,
+                    })).filter((d) => d.value > 0);
+
+                    if (!entries.length) {
+                        wrap.innerHTML = "";
+                        legend.innerHTML = "";
+                        empty.classList.remove("hidden");
+                        return;
+                    }
+                    empty.classList.add("hidden");
+
+                    const total = entries.reduce((s, e) => s + e.value, 0);
+                    const colors = [
+                        "var(--chart-1)",
+                        "var(--chart-2)",
+                        "var(--chart-3)",
+                        "var(--chart-4)",
+                    ];
+
+                    const svg = document.createElementNS(
+                        "http://www.w3.org/2000/svg",
+                        "svg",
+                    );
+                    svg.setAttribute("viewBox", "-1 -1 2 2");
+                    svg.style.transform = "rotate(-90deg)";
+
+                    let acc = 0;
+                    entries.forEach((d, i) => {
+                        const pct = d.value / total;
+                        const angle = pct * 360;
+                        const start = acc;
+                        const end = acc + angle;
+                        acc = end;
+
+                        const x1 = Math.cos((start * Math.PI) / 180);
+                        const y1 = Math.sin((start * Math.PI) / 180);
+                        const x2 = Math.cos((end * Math.PI) / 180);
+                        const y2 = Math.sin((end * Math.PI) / 180);
+                        const large = angle > 180 ? 1 : 0;
+
+                        const path = document.createElementNS(
+                            "http://www.w3.org/2000/svg",
+                            "path",
+                        );
+                        path.setAttribute(
+                            "d",
+                            `M 0 0 L ${x1} ${y1} A 1 1 0 ${large} 1 ${x2} ${y2} Z`,
+                        );
+                        path.setAttribute("fill", colors[i % colors.length]);
+                        svg.appendChild(path);
+                    });
+
+                    // inner circle for donut
+                    const inner = document.createElementNS(
+                        "http://www.w3.org/2000/svg",
+                        "circle",
+                    );
+                    inner.setAttribute("cx", "0");
+                    inner.setAttribute("cy", "0");
+                    inner.setAttribute("r", "0.55");
+                    inner.setAttribute("fill", "var(--bg-card)");
+                    svg.appendChild(inner);
+
+                    wrap.innerHTML = "";
+                    wrap.appendChild(svg);
+
+                    // Legend
+                    legend.innerHTML = "";
+                    entries.forEach((d, i) => {
+                        const item = document.createElement("span");
+                        item.className = "chart-legend-item";
+                        item.innerHTML = `<span class="chart-legend-dot" style="background:${colors[i % colors.length]}"></span>${d.label} (${d.value})`;
+                        legend.appendChild(item);
+                    });
+                }
+
+                function renderBarChart(plays, teams) {
+                    const wrap = document.getElementById("analytics-bar-wrap");
+                    const empty = document.getElementById(
+                        "analytics-bar-empty",
+                    );
+
+                    const map = {};
+                    const allMembers = teams.flatMap((t) =>
+                        t.members.map((m) => ({ ...m, teamName: t.name })),
+                    );
+                    plays.forEach((p) => {
+                        const m = allMembers.find((mm) => mm.id === p.memberId);
+                        const name = m ? m.name : "不明";
+                        const entry = map[p.memberId] || {
+                            name,
+                            total: 0,
+                            outs: 0,
+                        };
+                        entry.total += 1;
+                        if (p.outed) entry.outs += 1;
+                        map[p.memberId] = entry;
+                    });
+
+                    const entries = Object.values(map)
+                        .map((e) => ({
+                            ...e,
+                            outRate: e.total
+                                ? Math.round((e.outs / e.total) * 100)
+                                : 0,
+                        }))
+                        .sort((a, b) => b.total - a.total);
+
+                    if (!entries.length) {
+                        wrap.innerHTML = "";
+                        empty.classList.remove("hidden");
+                        return;
+                    }
+                    empty.classList.add("hidden");
+
+                    const svgWidth = 600;
+                    const svgHeight = 280;
+                    const padL = 48,
+                        padR = 16,
+                        padT = 16,
+                        padB = 48;
+                    const chartW = svgWidth - padL - padR;
+                    const chartH = svgHeight - padT - padB;
+                    const barGap = 12;
+                    const barW = Math.min(
+                        48,
+                        (chartW - barGap * (entries.length - 1)) /
+                            entries.length,
+                    );
+
+                    const ns = "http://www.w3.org/2000/svg";
+                    const svg = document.createElementNS(ns, "svg");
+                    svg.setAttribute("viewBox", `0 0 ${svgWidth} ${svgHeight}`);
+                    svg.setAttribute("preserveAspectRatio", "xMidYMid meet");
+
+                    // Y axis
+                    for (let v = 0; v <= 100; v += 25) {
+                        const y = padT + chartH * (1 - v / 100);
+                        const line = document.createElementNS(ns, "line");
+                        line.setAttribute("x1", padL);
+                        line.setAttribute("y1", y);
+                        line.setAttribute("x2", svgWidth - padR);
+                        line.setAttribute("y2", y);
+                        line.setAttribute("stroke", "var(--border)");
+                        line.setAttribute("stroke-width", "0.5");
+                        svg.appendChild(line);
+                        const txt = document.createElementNS(ns, "text");
+                        txt.setAttribute("x", padL - 8);
+                        txt.setAttribute("y", y + 4);
+                        txt.setAttribute("text-anchor", "end");
+                        txt.setAttribute("font-size", "11");
+                        txt.setAttribute("fill", "var(--muted-fg)");
+                        txt.textContent = v + "%";
+                        svg.appendChild(txt);
+                    }
+
+                    const color = "var(--chart-1)";
+                    entries.forEach((d, i) => {
+                        const x = padL + i * (barW + barGap);
+                        const h = (d.outRate / 100) * chartH;
+                        const y = padT + chartH - h;
+
+                        const rect = document.createElementNS(ns, "rect");
+                        rect.setAttribute("x", x);
+                        rect.setAttribute("y", y);
+                        rect.setAttribute("width", barW);
+                        rect.setAttribute("height", h);
+                        rect.setAttribute("fill", color);
+                        rect.setAttribute("rx", "4");
+                        svg.appendChild(rect);
+
+                        // Tooltip on hover
+                        const tipG = document.createElementNS(ns, "g");
+                        const tipBg = document.createElementNS(ns, "rect");
+                        const tipText = document.createElementNS(ns, "text");
+                        const tooltipW = 60,
+                            tooltipH = 20;
+                        const tipX = x + barW / 2 - tooltipW / 2;
+                        const tipY = y - 24;
+                        tipBg.setAttribute("x", tipX);
+                        tipBg.setAttribute("y", tipY);
+                        tipBg.setAttribute("width", tooltipW);
+                        tipBg.setAttribute("height", tooltipH);
+                        tipBg.setAttribute("rx", "4");
+                        tipBg.setAttribute("fill", "var(--bg-card)");
+                        tipBg.setAttribute("stroke", "var(--border)");
+                        tipBg.setAttribute("stroke-width", "0.5");
+                        tipBg.setAttribute("display", "none");
+                        tipText.setAttribute("x", tipX + tooltipW / 2);
+                        tipText.setAttribute("y", tipY + 14);
+                        tipText.setAttribute("text-anchor", "middle");
+                        tipText.setAttribute("font-size", "11");
+                        tipText.setAttribute("fill", "var(--fg)");
+                        tipText.setAttribute("display", "none");
+                        tipText.textContent =
+                            d.outRate + "% (" + d.outs + "/" + d.total + ")";
+                        tipG.appendChild(tipBg);
+                        tipG.appendChild(tipText);
+                        svg.appendChild(tipG);
+
+                        const showTip = (show) => {
+                            tipBg.setAttribute(
+                                "display",
+                                show ? "block" : "none",
+                            );
+                            tipText.setAttribute(
+                                "display",
+                                show ? "block" : "none",
+                            );
+                        };
+                        rect.addEventListener("mouseenter", () =>
+                            showTip(true),
+                        );
+                        rect.addEventListener("mouseleave", () =>
+                            showTip(false),
+                        );
+
+                        // Label
+                        const lbl = document.createElementNS(ns, "text");
+                        lbl.setAttribute("x", x + barW / 2);
+                        lbl.setAttribute("y", svgHeight - 12);
+                        lbl.setAttribute("text-anchor", "end");
+                        lbl.setAttribute("font-size", "11");
+                        lbl.setAttribute("fill", "var(--muted-fg)");
+                        lbl.setAttribute(
+                            "transform",
+                            `rotate(-30 ${x + barW / 2} ${svgHeight - 12})`,
+                        );
+                        lbl.textContent = d.name;
+                        svg.appendChild(lbl);
+                    });
+
+                    wrap.innerHTML = "";
+                    wrap.appendChild(svg);
+                }
+
+                // ============================================================
+                // SETTINGS
+                // ============================================================
+                function renderSettings() {
+                    const data = getData();
+                    const empty = document.getElementById("settings-empty");
+                    const list = document.getElementById("settings-team-list");
+
+                    if (!data.teams.length) {
+                        empty.classList.remove("hidden");
+                        list.innerHTML = "";
+                        return;
+                    }
+                    empty.classList.add("hidden");
+
+                    list.innerHTML = "";
+                    data.teams.forEach((team) => {
+                        const playsCount = data.plays.filter(
+                            (p) => p.teamId === team.id,
+                        ).length;
+
+                        const card = document.createElement("div");
+                        card.className = "team-card";
+
+                        // Header
+                        const header = document.createElement("div");
+                        header.className =
+                            "flex items-center justify-between gap-2";
+                        const titleGroup = document.createElement("div");
+                        titleGroup.className = "flex items-center gap-2";
+
+                        const title = document.createElement("span");
+                        title.className = "card-title";
+                        title.textContent = team.name;
+                        titleGroup.appendChild(title);
+
+                        const memberBadge = document.createElement("span");
+                        memberBadge.className = "badge badge-secondary";
+                        memberBadge.innerHTML =
+                            '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="12" height="12"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75"/></svg> ' +
+                            team.members.length;
+                        titleGroup.appendChild(memberBadge);
+
+                        if (playsCount > 0) {
+                            const recBadge = document.createElement("span");
+                            recBadge.className = "badge badge-outline";
+                            recBadge.textContent = playsCount + " 記録";
+                            titleGroup.appendChild(recBadge);
+                        }
+
+                        header.appendChild(titleGroup);
+
+                        const delBtn = document.createElement("button");
+                        delBtn.className = "btn btn-destructive-ghost btn-icon";
+                        delBtn.innerHTML =
+                            '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16"><path d="M3 6h18M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>';
+                        delBtn.setAttribute("aria-label", "チームを削除");
+                        delBtn.addEventListener("click", () => {
+                            if (
+                                confirm(
+                                    "「" +
+                                        team.name +
+                                        "」と関連する記録を削除しますか？",
+                                )
+                            ) {
+                                setData((prev) => ({
+                                    teams: prev.teams.filter(
+                                        (t) => t.id !== team.id,
+                                    ),
+                                    plays: prev.plays.filter(
+                                        (p) => p.teamId !== team.id,
+                                    ),
+                                }));
+                                renderSettings();
+                            }
+                        });
+                        header.appendChild(delBtn);
+                        card.appendChild(header);
+
+                        // Member list
+                        const ul = document.createElement("ul");
+                        ul.className = "flex flex-col gap-1.5";
+                        if (team.members.length) {
+                            team.members.forEach((m) => {
+                                const li = document.createElement("li");
+                                li.className = "member-row";
+                                li.innerHTML = "<span>" + m.name + "</span>";
+                                const del = document.createElement("button");
+                                del.className = "member-del";
+                                del.innerHTML =
+                                    '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14"><path d="M3 6h18M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>';
+                                del.setAttribute(
+                                    "aria-label",
+                                    m.name + " を削除",
+                                );
+                                del.addEventListener("click", () => {
+                                    setData((prev) => ({
+                                        ...prev,
+                                        teams: prev.teams.map((t) =>
+                                            t.id === team.id
+                                                ? {
+                                                      ...t,
+                                                      members: t.members.filter(
+                                                          (mm) =>
+                                                              mm.id !== m.id,
+                                                      ),
+                                                  }
+                                                : t,
+                                        ),
+                                        plays: prev.plays.filter(
+                                            (p) => p.memberId !== m.id,
+                                        ),
+                                    }));
+                                    renderSettings();
+                                });
+                                li.appendChild(del);
+                                ul.appendChild(li);
+                            });
+                        } else {
+                            const li = document.createElement("li");
+                            li.className = "member-row-empty";
+                            li.textContent = "メンバーが未登録です";
+                            ul.appendChild(li);
+                        }
+                        card.appendChild(ul);
+
+                        // Add member form
+                        const form = document.createElement("form");
+                        form.className = "flex gap-2 mt-auto";
+                        const input = document.createElement("input");
+                        input.type = "text";
+                        input.className = "input flex-1";
+                        input.placeholder = "メンバー名";
+                        input.required = true;
+                        const addBtn = document.createElement("button");
+                        addBtn.type = "submit";
+                        addBtn.className = "btn btn-secondary btn-icon";
+                        addBtn.innerHTML =
+                            '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16"><path d="M5 12h14M12 5v14"/></svg>';
+                        addBtn.setAttribute("aria-label", "メンバーを追加");
+                        form.appendChild(input);
+                        form.appendChild(addBtn);
+                        form.addEventListener("submit", (e) => {
+                            e.preventDefault();
+                            const name = input.value.trim();
+                            if (!name) return;
+                            setData((prev) => ({
+                                ...prev,
+                                teams: prev.teams.map((t) =>
+                                    t.id === team.id
+                                        ? {
+                                              ...t,
+                                              members: [
+                                                  ...t.members,
+                                                  { id: uid("m"), name },
+                                              ],
+                                          }
+                                        : t,
+                                ),
+                            }));
+                            renderSettings();
+                        });
+                        card.appendChild(form);
+
+                        list.appendChild(card);
+                    });
+                }
+
+                // ============================================================
+                // INIT
+                // ============================================================
+                function init() {
+                    // Subscribe to store changes - re-render current page
+                    subscribe(() => {
+                        const hash = location.hash || "#";
+                        if (hash === "#analytics") renderAnalytics();
+                        else if (hash === "#settings") renderSettings();
+                        else renderRecordForm();
+                    });
+
+                    // Setup grid lines
+                    document
+                        .querySelectorAll(".field-grid-svg")
+                        .forEach(renderGridLines);
+
+                    // Setup field interactions
+                    setupFieldInteraction("record");
+
+                    // Settings form
+                    document
+                        .getElementById("settings-add-team-form")
+                        .addEventListener("submit", function (e) {
+                            e.preventDefault();
+                            const input =
+                                document.getElementById("settings-new-team");
+                            const name = input.value.trim();
+                            if (!name) return;
+                            setData((prev) => ({
+                                ...prev,
+                                teams: [
+                                    ...prev.teams,
+                                    { id: uid("team"), name, members: [] },
+                                ],
+                            }));
+                            input.value = "";
+                            renderSettings();
+                        });
+
+                    // Export
+                    document
+                        .getElementById("settings-export-btn")
+                        .addEventListener("click", function () {
+                            const data = getData();
+                            const blob = new Blob(
+                                [JSON.stringify(data, null, 2)],
+                                { type: "application/json" },
+                            );
+                            const url = URL.createObjectURL(blob);
+                            const a = document.createElement("a");
+                            a.href = url;
+                            a.download =
+                                "kickbase-data-" +
+                                new Date().toISOString().slice(0, 10) +
+                                ".json";
+                            document.body.appendChild(a);
+                            a.click();
+                            document.body.removeChild(a);
+                            URL.revokeObjectURL(url);
+                            toast("エクスポートしました");
+                        });
+
+                    // Import
+                    document
+                        .getElementById("settings-import-btn")
+                        .addEventListener("click", function () {
+                            document
+                                .getElementById("settings-import-file")
+                                .click();
+                        });
+                    document
+                        .getElementById("settings-import-file")
+                        .addEventListener("change", function (e) {
+                            const file = this.files[0];
+                            if (!file) return;
+                            const reader = new FileReader();
+                            reader.onload = function (ev) {
+                                try {
+                                    const parsed = JSON.parse(ev.target.result);
+                                    if (
+                                        !Array.isArray(parsed.teams) ||
+                                        !Array.isArray(parsed.plays)
+                                    ) {
+                                        toast(
+                                            "エラー: 正しいデータ形式ではありません",
+                                        );
+                                        return;
+                                    }
+                                    if (
+                                        !confirm(
+                                            "現在のデータをインポートしたデータで上書きします。よろしいですか？",
+                                        )
+                                    )
+                                        return;
+                                    setData(() => ({
+                                        teams: parsed.teams,
+                                        plays: parsed.plays,
+                                    }));
+                                    renderSettings();
+                                    toast("インポートしました");
+                                } catch {
+                                    toast("エラー: JSONの解析に失敗しました");
+                                }
+                            };
+                            reader.readAsText(file);
+                            this.value = "";
+                        });
+
+                    // Initial navigation
+                    navigate();
+                }
+
+                if (document.readyState === "loading") {
+                    document.addEventListener("DOMContentLoaded", init);
+                } else {
+                    init();
+                }
+            })();
+        </script>
+    </body>
+</html>
